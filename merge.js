@@ -176,6 +176,7 @@ const merge = categories => {
                         "Talon Knife": "Faca Talon",
                         "Ursus Knife": "Faca Ursus",
                         "R8 Revolver": "Revólver R8",
+                        "Dual Berettas": "Berettas Duplas",
                     }?.[item?.weapon?.name] || item?.weapon?.name;
 
                 let nameEN = name;
