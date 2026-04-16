@@ -6,12 +6,11 @@ import { processImages } from "./processImages.js";
 
 const GENERATED_FILES_DIR = `./generated/${format(new Date(), "yyyy-LL-dd")}`;
 
-const images = () => {
+const generateImages = () => {
     const images = {};
 
     const filenames = [
         "agents",
-        "all",
         "collectibles",
         "crates",
         "graffiti",
@@ -34,8 +33,9 @@ const images = () => {
 
         Object.values(parsedFile)
             .filter(({ market_hash_name }) => market_hash_name !== null)
-            .forEach(({ market_hash_name, image }) => {
-                images[market_hash_name] = image;
+            .forEach(({ name, market_hash_name, image }) => {
+                const marketHashName = market_hash_name || name;
+                if (marketHashName) images[marketHashName] = image;
             });
 
         // These items are no longer available on the Steam market.
@@ -49,12 +49,13 @@ const images = () => {
     return images;
 };
 
-let generatedImages = images();
+let generatedImages = generateImages();
 
 // GitHub blocks the GET requests when images are requested too often,
 // preventing them from displaying correctly in filters.
 // To fix this, we need to download all images from GitHub images and make them
 // available to the client the using Next.js public folder.
+
 let imagesToProcess = [];
 
 for (const [market_hash_name, image] of Object.entries(generatedImages)) {
@@ -72,12 +73,17 @@ const processedImages = await processImages(
 
 // Remove failed images (very old items that are no longer available on the Steam
 // market).
-generatedImages = Object.entries(generatedImages)
-    .filter(([_, image]) => !processedImages.failed.includes(image))
-    .reduce(
-        (accumulator, [market_hash_name, image]) => Object.assign({ [market_hash_name]: image }, accumulator),
-        {}
-    );
+const parsedFailedImages = processedImages.failed.reduce((accumulator, image) => {
+    const fileName = path.basename(new URL(image).pathname).replace("_png.png", ".png");
+    return Object.assign(accumulator, { [`https://dashskins.com.br/images/items/${fileName}`]: false });
+}, {});
+
+for (const [market_hash_name, image] of Object.entries(generatedImages)) {
+    if (image.startsWith("https://dashskins.com.br/images/items/")) {
+        const failedToProcess = parsedFailedImages?.[image] === false;
+        if (failedToProcess) delete generatedImages[market_hash_name];
+    }
+}
 
 if (!fs.existsSync(GENERATED_FILES_DIR)) {
     fs.mkdirSync(GENERATED_FILES_DIR, { recursive: true });

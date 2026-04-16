@@ -42,7 +42,7 @@ export const processImages = async (images, outputPath = "/images/items") => {
                 await _downloadImage(url, filePath);
                 response.fulfilled.push(url);
             } else {
-                console.log(`✅ Image ${+index + 1} of ${images.length} already download:`, fileName);
+                console.log(`✅ Downloading ${+index + 1} of ${images.length}:`, fileName);
                 response.fulfilled.push(url);
             }
         } catch (err) {
