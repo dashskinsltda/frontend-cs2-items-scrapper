@@ -22,6 +22,11 @@ const _downloadImage = async (url, outputPath) => {
 };
 
 export const processImages = async (images, outputPath = "/images/items") => {
+    const response = {
+        fulfilled: [],
+        failed: [],
+    };
+
     for (const [index, url] of Object.entries(images)) {
         // extract filename from URL
         const fileName = path.basename(new URL(url).pathname).replace("_png.png", ".png");
@@ -35,11 +40,16 @@ export const processImages = async (images, outputPath = "/images/items") => {
             if (!fs.existsSync(filePath)) {
                 console.log(`⬇️ Downloading ${+index + 1} of ${images.length}:`, fileName);
                 await _downloadImage(url, filePath);
+                response.fulfilled.push(url);
             } else {
                 console.log(`✅ Image ${+index + 1} of ${images.length} already download:`, fileName);
+                response.fulfilled.push(url);
             }
         } catch (err) {
-            console.error("❌ Error:", err.message, `for image ${fileName}`);
+            console.error("❌ Error:", err.message, `for image ${fileName} [${url}]`);
+            response.failed.push(url);
         }
     }
+
+    return response;
 };

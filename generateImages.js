@@ -9,7 +9,23 @@ const GENERATED_FILES_DIR = `./generated/${format(new Date(), "yyyy-LL-dd")}`;
 const images = () => {
     const images = {};
 
-    const filenames = ["all", "highlights"];
+    const filenames = [
+        "agents",
+        "all",
+        "collectibles",
+        "crates",
+        "graffiti",
+        "highlights",
+        "keychains",
+        "keys",
+        "music_kits",
+        "patches",
+        "skins_not_grouped",
+        "skins",
+        "stickers_slab",
+        "stickers",
+        "tools",
+    ];
 
     for (const filename of filenames) {
         const file = fs.readFileSync(`./public/api/en/${filename}.json`, "utf-8");
@@ -21,12 +37,19 @@ const images = () => {
             .forEach(({ market_hash_name, image }) => {
                 images[market_hash_name] = image;
             });
+
+        // These items are no longer available on the Steam market.
+        Object.values(parsedFile)
+            .filter(({ market_hash_name }) => market_hash_name === null)
+            .forEach(({ name, image }) => {
+                if (name) images[name] = image;
+            });
     }
 
     return images;
 };
 
-const generatedImages = images();
+let generatedImages = images();
 
 // GitHub blocks the GET requests when images are requested too often,
 // preventing them from displaying correctly in filters.
@@ -42,7 +65,19 @@ for (const [market_hash_name, image] of Object.entries(generatedImages)) {
     }
 }
 
-await processImages(imagesToProcess, `/generated/${format(new Date(), "yyyy-LL-dd")}/images/items`);
+const processedImages = await processImages(
+    imagesToProcess,
+    `/generated/${format(new Date(), "yyyy-LL-dd")}/images/items`
+);
+
+// Remove failed images (very old items that are no longer available on the Steam
+// market).
+generatedImages = Object.entries(generatedImages)
+    .filter(([_, image]) => !processedImages.failed.includes(image))
+    .reduce(
+        (accumulator, [market_hash_name, image]) => Object.assign({ [market_hash_name]: image }, accumulator),
+        {}
+    );
 
 if (!fs.existsSync(GENERATED_FILES_DIR)) {
     fs.mkdirSync(GENERATED_FILES_DIR, { recursive: true });
