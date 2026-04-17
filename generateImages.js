@@ -55,7 +55,6 @@ let generatedImages = generateImages();
 // preventing them from displaying correctly in filters.
 // To fix this, we need to download all images from GitHub images and make them
 // available to the client the using Next.js public folder.
-
 let imagesToProcess = [];
 
 for (const [market_hash_name, image] of Object.entries(generatedImages)) {

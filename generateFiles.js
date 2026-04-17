@@ -7,8 +7,8 @@ import { processImages } from "./processImages.js";
 
 const GENERATED_FILES_DIR = `./generated/${format(new Date(), "yyyy-LL-dd")}`;
 
-const mergeItems = categories => {
-    let merged = {};
+const getItems = categories => {
+    let response = {};
 
     for (const category of categories) {
         const filenames = {
@@ -457,6 +457,10 @@ const mergeItems = categories => {
                             nameEN = nameEN.replace("Music Kit | ", "");
                             namePTBR = namePTBR.replace("Trilha Sonora | ", "");
                             break;
+
+                        case "agents":
+                            namePTBR = namePTBR.replaceAll("\\", "");
+                            break;
                     }
 
                     let parsedMarketHashName = market_hash_name;
@@ -478,10 +482,10 @@ const mergeItems = categories => {
                     }
 
                     if (subCategoryId) {
-                        merged = {
-                            ...merged,
+                        response = {
+                            ...response,
                             [keyMapping]: [
-                                ...(merged?.[keyMapping] || []),
+                                ...(response?.[keyMapping] || []),
                                 {
                                     id,
                                     categoryId,
@@ -496,10 +500,10 @@ const mergeItems = categories => {
                             ],
                         };
                     } else {
-                        merged = {
-                            ...merged,
+                        response = {
+                            ...response,
                             [keyMapping]: [
-                                ...(merged?.[keyMapping] || []),
+                                ...(response?.[keyMapping] || []),
                                 {
                                     id,
                                     categoryId,
@@ -517,15 +521,10 @@ const mergeItems = categories => {
         }
     }
 
-    return merged;
+    return response;
 };
 
-const generateTimestampHash = () => {
-    const timestamp = Date.now().toString();
-    return crypto.createHash("sha256").update(timestamp).digest("hex");
-};
-
-const mergeCollections = () => {
+const getCollections = () => {
     const en = fs.readFileSync("./public/api/en/collections.json", "utf-8");
     const ptBR = fs.readFileSync("./public/api/pt-BR/collections.json", "utf-8");
 
@@ -549,12 +548,17 @@ const mergeCollections = () => {
     return collections;
 };
 
+const generateTimestampHash = () => {
+    const timestamp = Date.now().toString();
+    return crypto.createHash("sha256").update(timestamp).digest("hex");
+};
+
 if (!fs.existsSync(GENERATED_FILES_DIR)) {
     fs.mkdirSync(GENERATED_FILES_DIR, { recursive: true });
 }
 
 // ---------------- GENERATE ALL.JSON ----------------
-const allItems = mergeItems([
+const allItems = getItems([
     "agents",
     "stickers",
     "keys",
@@ -602,7 +606,7 @@ fs.writeFileSync(`${GENERATED_FILES_DIR}/hash.json`, JSON.stringify({ hash: gene
 // ---------------- GENERATE ESET.TS ----------------
 let ESet = `const ESet = {\n`;
 
-mergeCollections().map(({ id, name }) => {
+getCollections().map(({ id, name }) => {
     ESet += `  ${id.toUpperCase().replaceAll("-", "_")}: '${name.pt}',\n`;
 });
 
@@ -616,7 +620,7 @@ let collections = `import { Collection } from '@/types/Filters';
 import { ESet } from '@/types/Item';\n
 const COLLECTIONS: Collection[] = [\n`;
 
-mergeCollections().forEach(({ id, name, image }) => {
+getCollections().forEach(({ id, name, image }) => {
     let parsedImage = image;
 
     if (image.startsWith("https://raw.githubusercontent.com/ByMykel/")) {
