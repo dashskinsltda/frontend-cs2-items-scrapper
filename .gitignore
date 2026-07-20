@@ -2,5 +2,9 @@
 **/node_modules
 **/trash
 
-public/
-generated/
+bots
+collections
+images
+items
+public/api
+.env

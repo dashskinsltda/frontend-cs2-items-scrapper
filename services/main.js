@@ -1,6 +1,7 @@
 import axios from "axios";
 import sha1 from "sha1";
 import { IMAGES_INVENTORY_URL, ITEMS_GAME_URL, getImageUrl } from "../constants.js";
+import { getCollectionImage } from "./collections.js";
 import {
     filterUniqueByAttribute,
     getDopplerPhase,
@@ -57,7 +58,7 @@ export const loadItemsGame = async () => {
             });
         })
         .catch(error => {
-            throw new Error(`Error loading items_game.txt from ${ITEMS_GAME_URL}`, { cause: error });
+            throw new Error(`Error loading items_game.txt from ${ITEMS_GAME_URL}`);
         });
 
     await axios
@@ -81,7 +82,7 @@ export const loadItemsGame = async () => {
                 }, {});
         })
         .catch(error => {
-            throw new Error(`Error formatting alternate_icons2.weapon_icons`, { cause: error });
+            throw new Error(`Error formatting alternate_icons2.weapon_icons`);
         });
 };
 
@@ -353,9 +354,11 @@ export const loadyCratesBySkins = () => {
                 const crateItem =
                     hardCodedCrates[crateKey] ||
                     state.items[crateKey] ||
-                    Object.values(state.items).find(
-                        i => i.attributes?.["set supply crate series"]?.value == lootList?.[0]
-                    );
+                    Object.values(state.items).find(i => {
+                        const series = i.attributes?.["set supply crate series"];
+                        const value = typeof series === "object" ? series?.value : series;
+                        return value == lootList?.[0];
+                    });
 
                 if (crateItem != null) {
                     acc[item.id].push({
@@ -470,12 +473,14 @@ export const loadCollectionsBySkins = () => {
                 const crateItem = state.itemsGame.item_sets[crateKey];
 
                 if (crateItem != null) {
+                    const fileName = crateItem.name.replace("#CSGO_", "");
+                    const imagePath = `econ/set_icons/${fileName}`;
+                    const image = getCollectionImage(crateItem.name, imagePath, state.cdnImages);
+
                     acc[item.id].push({
-                        id: `collection-${crateItem.name.replace("#CSGO_", "").replace(/_/g, "-")}`,
+                        id: `collection-${fileName.replace(/_/g, "-")}`,
                         name: crateItem.name_force ?? crateItem.name,
-                        image:
-                            state.cdnImages[`econ/set_icons/${crateItem.name.replace("#CSGO_", "")}`] ??
-                            getImageUrl(`econ/set_icons/${crateItem.name.replace("#CSGO_", "")}`),
+                        image,
                     });
                 }
             });
@@ -508,44 +513,18 @@ export const loadCollectionsByStickers = () => {
                         }
 
                         const fileName = collectionKey.replace("set_", "");
+                        const imagePath = `econ/set_icons/set_${fileName}`;
+                        const image = getCollectionImage(itemSet.name, imagePath, state.cdnImages);
+
                         acc[stickerItem.id].push({
                             id: `collection-set-${fileName.replace(/_/g, "-")}`,
                             name: itemSet.name_force ?? itemSet.name,
-                            image:
-                                state.cdnImages[`econ/set_icons/set_${fileName}`] ??
-                                getImageUrl(`econ/set_icons/set_${fileName}`),
+                            image,
                         });
                     }
                 });
             return acc;
         }, {});
-};
-
-export const loadSouvenirSkins = () => {
-    state.souvenirSkins = {
-        ...Object.values(state.items)
-            .filter(item => {
-                return (
-                    item.prefab === "weapon_case_souvenirpkg" ||
-                    item.prefab?.includes("_souvenir_crate_promo_prefab")
-                );
-            })
-            .map(item => {
-                const lootListName = item?.loot_list_name ?? null;
-                const attributeValue = item.attributes?.["set supply crate series"]?.value ?? null;
-                const keyLootList = lootListName ?? state.revolvingLootLists[attributeValue] ?? null;
-
-                return (
-                    state.skinsByCrates?.[item.tags?.ItemSet?.tag_value] ??
-                    state.skinsByCrates?.[keyLootList] ??
-                    []
-                );
-            })
-            .flatMap(level1 => level1)
-            .reduce((acc, item) => ({ ...acc, [item.id]: true }), {}),
-
-        "skin-e73d6e7e9004": true, // MP5-SD | Lab Rats
-    };
 };
 
 export const loadStattrakSkins = () => {
@@ -555,7 +534,11 @@ export const loadStattrakSkins = () => {
 
     Object.values(items).forEach(item => {
         const prefab = (item.prefab || "").split(" ");
-        if (prefab.includes("weapon_case") || prefab.includes("volatile_pricing")) {
+        if (
+            prefab.includes("weapon_case") ||
+            prefab.includes("volatile_pricing") ||
+            prefab.includes("volatile_pricing_gloves")
+        ) {
             const name = item?.tags?.ItemSet?.tag_value;
 
             if (name !== undefined) {
@@ -603,7 +586,7 @@ export const loadHighlights = () => {
             image: getImageUrl(`econ/keychains/${item.id.split("_")[0]}/kc_${item.id.split("_")[0]}`),
             image_inventory: `econ/keychains/${item.id.split("_")[0]}/kc_${item.id.split("_")[0]}`,
             video: video,
-            thumbnail: `https://raw.githubusercontent.com/ByMykel/counter-strike-image-tracker/refs/heads/main/static/highlightreels/${item.id.split("_")[0]}/${item.id}_ww.jpg`,
+            thumbnail: `https://raw.githubusercontent.com/ByMykel/counter-strike-image-tracker/refs/heads/main/static/highlightreels/ww/${id}.webp`,
         };
     });
 };
@@ -637,7 +620,7 @@ export const loadImagesInventory = async () => {
         const response = await axios.get(IMAGES_INVENTORY_URL);
         state.cdnImages = response.data;
     } catch (error) {
-        throw new Error(`Error loading images inventory`, { cause: error });
+        throw new Error(`Error loading images inventory`);
     }
 };
 
@@ -753,13 +736,14 @@ const getItemFromKey = key => {
 
     if (type === "keychain") {
         const keychain = keychainDefinitionsObj[name];
+        const keychainImageInventory = (
+            keychain?.image_inventory ?? keychainDefinitionsObj[keychain.base]?.image_inventory
+        )?.toLowerCase();
         return {
             id: `keychain-${keychain.object_id}`,
             name: keychain.loc_name,
             rarity: `rarity_${keychain.item_rarity}`,
-            image:
-                state.cdnImages[keychain.image_inventory.toLowerCase()] ??
-                getImageUrl(keychain.image_inventory.toLowerCase()),
+            image: state.cdnImages[keychainImageInventory] ?? getImageUrl(keychainImageInventory),
         };
     }
 
@@ -852,7 +836,18 @@ export const getManifestId = async () => {
             return Buffer.from(response.data.content, "base64").toString("utf-8").trim();
         })
         .catch(error => {
-            throw new Error(`Error getting manifestId`, { cause: error });
+            throw new Error(`Error getting manifestId`);
+        });
+};
+
+export const getImagesJsonSha = async () => {
+    return axios
+        .get("https://api.github.com/repos/ByMykel/counter-strike-image-tracker/contents/static/images.json")
+        .then(response => {
+            return response.data.sha;
+        })
+        .catch(error => {
+            throw new Error(`Error getting images.json SHA`);
         });
 };
 
@@ -875,7 +870,6 @@ export const loadData = async () => {
     loadCratesByCollections();
     loadCollectionsBySkins();
     loadCollectionsByStickers();
-    loadSouvenirSkins();
     loadStattrakSkins();
     loadHighlights();
     loadProTeams();

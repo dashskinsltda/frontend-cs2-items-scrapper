@@ -87,7 +87,9 @@ const parseItem = item => {
         .map(crate => ({
             id: `crate-${crate.object_id}`,
             name: $t(crate.item_name),
-            image: getImageUrl(crate.image_inventory.toLowerCase()),
+            image:
+                cdnImages[crate.image_inventory.toLowerCase()] ??
+                getImageUrl(crate.image_inventory.toLowerCase()),
         }));
 
     return {
@@ -116,7 +118,7 @@ export const getKeys = () => {
     const keys = [
         // Hardcoded generic valve key that I can't find in `items`.
         {
-            object_id: "generic_valve_key",
+            object_id: "1203",
             item_name: "#CSGO_Tool_WeaponCase_Key",
             item_description: "#CSGO_Tool_WeaponCase_Key_Desc",
             image_inventory: "econ/tools/weapon_case_key",

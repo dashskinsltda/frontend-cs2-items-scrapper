@@ -1,10 +1,23 @@
 import fs from "fs";
 import path from "path";
-import { LANGUAGES_URL } from "./constants.js";
-import { getManifestId } from "./services/main.js";
+import { getLanguages, parseLanguagesArg } from "./utils/languages.js";
+import { getManifestId, getImagesJsonSha } from "./services/main.js";
 
 const args = process.argv.slice(2);
 const isForce = args.includes("--force");
+const codes = parseLanguagesArg(args);
+
+if (codes.length === 0) {
+    console.error("Error: no languages specified. Pass --languages en,ru,uk (comma-separated folder codes).");
+    process.exit(1);
+}
+
+const languages = getLanguages(codes);
+
+if (languages.length === 0) {
+    console.error(`Error: none of the provided codes match known languages: ${codes.join(", ")}`);
+    process.exit(1);
+}
 
 const inputFilePathsTemplate = [
     "./public/api/{lang}/agents.json",
@@ -17,16 +30,25 @@ const inputFilePathsTemplate = [
     "./public/api/{lang}/patches.json",
     "./public/api/{lang}/skins_not_grouped.json",
     "./public/api/{lang}/stickers.json",
-    "./public/api/{lang}/stickers_slab.json",
+    "./public/api/{lang}/sticker_slabs.json",
     "./public/api/{lang}/keychains.json",
     "./public/api/{lang}/tools.json",
 ];
 
 let existingManifestId = "";
-const latestManifestId = await getManifestId();
+let existingImagesSha = "";
+const [latestManifestId, latestImagesSha] = await Promise.all([getManifestId(), getImagesJsonSha()]);
 
 try {
-    existingManifestId = fs.readFileSync("./manifestIdGroup.txt");
+    existingManifestId = fs.readFileSync("./manifestIdGroup.txt", "utf-8");
+} catch (err) {
+    if (err.code != "ENOENT") {
+        throw err;
+    }
+}
+
+try {
+    existingImagesSha = fs.readFileSync("./imagesShaGroup.txt", "utf-8");
 } catch (err) {
     if (err.code != "ENOENT") {
         throw err;
@@ -36,17 +58,23 @@ try {
 if (isForce) {
     console.log("Force flag detected, generating new data regardless of manifest Ids");
 } else {
-    // TODO: Need to check if default_generated.json from counter-strike-image-tracker repo has changed,
-    // since we now pull data from there too.
-    if (existingManifestId == latestManifestId) {
-        console.log("Latest manifest Id matches existing manifest Id, exiting");
+    const manifestChanged = existingManifestId !== latestManifestId;
+    const imagesChanged = existingImagesSha !== latestImagesSha;
+
+    if (!manifestChanged && !imagesChanged) {
+        console.log("No changes detected in manifest or images.json, exiting");
         process.exit(0);
-    } else {
-        console.log("Latest manifest Id does not match existing manifest Id, generating new data.");
+    }
+
+    if (manifestChanged) {
+        console.log("Manifest Id changed, generating new data.");
+    }
+    if (imagesChanged) {
+        console.log("images.json changed, generating new data.");
     }
 }
 
-for (let langObj of LANGUAGES_URL) {
+for (let langObj of languages) {
     const lang = langObj.folder;
     const allData = {};
 
@@ -76,6 +104,7 @@ for (let langObj of LANGUAGES_URL) {
 
 try {
     fs.writeFileSync("./manifestIdGroup.txt", latestManifestId.toString());
+    fs.writeFileSync("./imagesShaGroup.txt", latestImagesSha.toString());
 } catch (err) {
     throw err;
 }

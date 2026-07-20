@@ -107,7 +107,15 @@ const getFirstSaleDate = (item, prefabs) => {
 };
 
 const getMarketHashName = item => {
-    if (["4729", "4783", "4795", "4614", "4779"].includes(item.object_id)) {
+    if (["4600", "4614", "4719", "4729", "4779", "4871", "4872", "4783", "4795"].includes(item.object_id)) {
+        return null;
+    }
+
+    // Cologne 2026 Capsules are not marketable
+    if (
+        item.prefab?.includes("cologne2026_signature_capsule_prefab") ||
+        item.prefab?.includes("cologne2026_sticker_capsule_prefab")
+    ) {
         return null;
     }
 
@@ -120,7 +128,8 @@ const parseItem = (item, prefabs) => {
     const image =
         cdnImages[item.image_inventory.toLowerCase()] ?? getImageUrl(item.image_inventory.toLowerCase());
     const lootListName = item?.loot_list_name ?? null;
-    const attributeValue = item.attributes?.["set supply crate series"]?.value ?? null;
+    const seriesAttr = item.attributes?.["set supply crate series"];
+    const attributeValue = (typeof seriesAttr === "object" ? seriesAttr?.value : seriesAttr) ?? null;
     const keyLootList = lootListName ?? revolvingLootLists[attributeValue] ?? null;
 
     let crate = {
