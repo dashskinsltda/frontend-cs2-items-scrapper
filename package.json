@@ -15,6 +15,7 @@
         "group-data-force": "node group.js --force",
         "format": "prettier --write \"**/*.js\" --ignore-path .gitignore",
         "generate-files": "node generateFiles.js",
+        "build-dist": "node buildDist.js",
         "generate-images": "node generateImages.js"
     }
 }

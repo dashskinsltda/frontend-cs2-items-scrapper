@@ -1,0 +1,68 @@
+#
+# Publishes the item catalogue both DashSkins platforms read.
+#
+# Manual on purpose. CS2 items ship in batches every few months, so there is nothing for a schedule to catch, and
+# a cron on a quiet repository gets disabled by GitHub after 60 days of no commits anyway - which is what
+# silently happened to update-and-group.yml.
+#
+# The deployment is one snapshot of one pipeline run, so the P2P api and the bots frontend cannot drift: both
+# record the Steam build id in manifestIdUpdate.txt and both read the same files.
+#
+name: Publish catalog
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Baixar tudo de novo, mesmo sem mudança de manifesto"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: publish-catalog
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: npm ci
+
+      # update.js exits early when the Steam depot manifest has not moved, which is also the case on a fresh
+      # checkout - the default is therefore to force.
+      - name: Baixar dados do jogo
+        run: npm run ${{ inputs.force && 'update-data-force' || 'update-data' }}
+
+      # group-data is deliberately absent: it only builds a 62 MB all.json that neither platform reads.
+      - name: Gerar arquivos do bots
+        run: npm run generate-files
+
+      - name: Montar dist/
+        run: node buildDist.js
+
+      - name: Resumo
+        run: |
+          echo "### Catálogo publicado" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          head -c 400 dist/version.json >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Tamanho: $(du -sh dist | cut -f1)" >> $GITHUB_STEP_SUMMARY
+
+      - uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: dist
+          clean: true
+          commit-message: "catálogo build ${{ github.run_number }}"
