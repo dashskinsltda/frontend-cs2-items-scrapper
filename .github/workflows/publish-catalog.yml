@@ -92,13 +92,16 @@ jobs:
       # public/api/pt-BR is not tracked, so on a clean CI checkout there would then be nothing for generate-files
       # to read. Deciding whether there is anything to do is the check job's business, not update.js's.
       - name: Baixar dados do jogo
+        id: dados
         run: npm run update-data-force
 
       # group-data is deliberately absent: it only builds a 62 MB all.json that neither platform reads.
       - name: Gerar arquivos do bots
+        id: gerar
         run: npm run generate-files
 
       - name: Montar dist/
+        id: montar
         run: node buildDist.js
 
       # What actually arrived, against what is published right now. Has to run BEFORE the deploy, while the old
@@ -161,5 +164,34 @@ jobs:
               description: $desc,
               url: $url,
               color: 3066993
+            }]
+          }' | curl -sS -X POST -H "Content-Type: application/json" -d @- "$WEBHOOK"
+
+      # The success notification only fires after a good deploy, which leaves silence meaning two different
+      # things: the game did not change, or the run broke. This closes that. It matters most for the scheduled
+      # run, where nobody is watching - and the generator really does break on new item shapes: the Cologne 2026
+      # highlight keychains shipped without image_inventory and took the whole pipeline down.
+      - name: Avisar falha no Discord
+        if: failure() && env.WEBHOOK != ''
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          FALHOU="passo desconhecido"
+          [ "${{ steps.dados.outcome }}" = "failure" ] && FALHOU="Baixar dados do jogo"
+          [ "${{ steps.gerar.outcome }}" = "failure" ] && FALHOU="Gerar arquivos do bots"
+          [ "${{ steps.montar.outcome }}" = "failure" ] && FALHOU="Montar dist/"
+
+          DESC="Falhou em **$FALHOU** (disparo: \`${{ github.event_name }}\`)."
+          DESC="$DESC"$'\n\n'"O catálogo publicado continua o anterior — nada foi sobrescrito."
+          DESC="$DESC"$'\n'"Causa mais comum: a Valve lançou um formato de item novo que o gerador não trata."
+
+          jq -n --arg desc "$DESC" --arg url "$RUN_URL" '{
+            username: "Catálogo CS2",
+            embeds: [{
+              title: "Falha ao publicar o catálogo",
+              description: $desc,
+              url: $url,
+              color: 15158332
             }]
           }' | curl -sS -X POST -H "Content-Type: application/json" -d @- "$WEBHOOK"
