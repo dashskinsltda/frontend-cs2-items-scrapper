@@ -101,14 +101,22 @@ jobs:
       - name: Montar dist/
         run: node buildDist.js
 
+      # What actually arrived, against what is published right now. Has to run BEFORE the deploy, while the old
+      # snapshot is still the one on gh-pages.
+      - name: Comparar com o publicado
+        run: node compareWithPublished.js "https://raw.githubusercontent.com/${{ github.repository }}/gh-pages"
+
       - name: Resumo
         run: |
           {
             echo "### Catálogo publicado"
-            echo '```json'
-            head -c 400 dist/version.json
-            echo ''
-            echo '```'
+            echo ""
+            jq -r '"Build **\(.manifestId)**" + (if .previousManifestId == null then " (primeira publicação)" else " — anterior \(.previousManifestId)" end)' changes.json
+            echo ""
+            jq -r '"| entram | mudam | somem | total |\n|---|---|---|---|\n| \(.added) | \(.changed) | \(.removed) | \(.total) |"' changes.json
+            echo ""
+            jq -r 'if (.addedByCategory | length) > 0 then "Novos por categoria: " + (.addedByCategory | to_entries | map("`\(.key)` \(.value)") | join(" · ")) else "" end' changes.json
+            echo ""
             echo "Tamanho: $(du -sh dist | cut -f1)"
             echo ""
             echo "Agora: preview no painel do P2P, e \`npm run items:update\` no new-frontend."
@@ -120,3 +128,38 @@ jobs:
           folder: dist
           clean: true
           commit-message: "catálogo build ${{ needs.check.outputs.steam }}"
+
+      # Only after the deploy succeeded, so the message never announces something that is not actually there.
+      # Silently skipped when the secret is absent - the publish is the point, the notification is a courtesy.
+      - name: Avisar no Discord
+        if: env.WEBHOOK != ''
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          DESC=$(jq -r '
+            (if .previousManifestId == null
+               then "Primeira publicação do catálogo."
+               else "Build `\(.previousManifestId)` → `\(.manifestId)`" end)
+            + "\n\n**\(.added)** entram · **\(.changed)** mudam · **\(.removed)** somem · \(.total) no total"
+            + (if (.addedByCategory | length) > 0
+                 then "\n\n" + (.addedByCategory | to_entries | map("`\(.key)` \(.value)") | join("  ·  "))
+                 else "" end)
+            + (if (.addedSamples | length) > 0
+                 then "\n\n_" + (.addedSamples | join(", ")) + "_"
+                 else "" end)
+            + (if (.added + .changed + .removed) > 0
+                 then "\n\nFalta aplicar: preview no painel do P2P, e `npm run items:update` no new-frontend."
+                 else "\n\nNenhum item mudou — republicação por mudança no gerador, não há o que aplicar."
+               end)
+          ' changes.json)
+
+          jq -n --arg desc "$DESC" --arg url "$RUN_URL" '{
+            username: "Catálogo CS2",
+            embeds: [{
+              title: "Catálogo publicado",
+              description: $desc,
+              url: $url,
+              color: 3066993
+            }]
+          }' | curl -sS -X POST -H "Content-Type: application/json" -d @- "$WEBHOOK"
