@@ -1,6 +1,6 @@
 {
   "manifestId": "2053759441494650084",
-  "generatedAt": "2026-09-21T02:18:19.213Z",
+  "generatedAt": "2026-09-21T02:53:57.377Z",
   "generation": "2026-09-21",
   "files": [
     "api/en/agents.json.gz",
@@ -35,6 +35,7 @@
     "api/pt-BR/stickers.json.gz",
     "api/pt-BR/stickers_slab.json.gz",
     "api/pt-BR/tools.json.gz",
+    "api/dopplers.json.gz",
     "bots/all.json.gz",
     "bots/hash.json",
     "bots/collections.ts",
