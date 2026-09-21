@@ -14,6 +14,24 @@ import { rareSpecial } from "../utils/rareSpecial.js";
 
 export const state = {};
 
+// Some item definitions ship without `image_inventory`. Valve has now done it for at least one keychain, and it
+// took the entire run down on `undefined.toLowerCase()` - a missing picture should never cost the catalogue.
+// The item is kept with a null image; both DashSkins consumers fill those in from their own Steam image maps.
+// The crate path below already guards the same way with optional chaining.
+const missingInventoryImages = new Set();
+const resolveInventoryImage = (image_inventory, label) => {
+    if (!image_inventory) {
+        if (label && !missingInventoryImages.has(label)) {
+            missingInventoryImages.add(label);
+            console.warn(`[image_inventory ausente] ${label}`);
+        }
+        return null;
+    }
+
+    const key = image_inventory.toLowerCase();
+    return state.cdnImages[key] ?? getImageUrl(key);
+};
+
 export const loadItemsGame = async () => {
     await axios
         .get(ITEMS_GAME_URL)
@@ -658,9 +676,7 @@ const getItemFromKey = key => {
             id: `collectible-${pin.object_id}`,
             name: pin.item_name,
             rarity: `rarity_${pin.item_rarity}`,
-            image:
-                state.cdnImages[pin.image_inventory.toLowerCase()] ??
-                getImageUrl(pin.image_inventory.toLowerCase()),
+            image: resolveInventoryImage(pin.image_inventory, `pin ${key}`),
         };
     }
 
@@ -745,9 +761,7 @@ const getItemFromKey = key => {
             id: `music_kit-${kit.object_id}`,
             name: exclusive ? kit.loc_name : kit.coupon_name,
             rarity: "rarity_rare",
-            image:
-                state.cdnImages[kit.image_inventory.toLowerCase()] ??
-                getImageUrl(kit.image_inventory.toLowerCase()),
+            image: resolveInventoryImage(kit.image_inventory, `musickit ${key}`),
         };
     }
 
@@ -757,9 +771,7 @@ const getItemFromKey = key => {
             id: `keychain-${keychain.object_id}`,
             name: keychain.loc_name,
             rarity: `rarity_${keychain.item_rarity}`,
-            image:
-                state.cdnImages[keychain.image_inventory.toLowerCase()] ??
-                getImageUrl(keychain.image_inventory.toLowerCase()),
+            image: resolveInventoryImage(keychain.image_inventory, `keychain ${key}`),
         };
     }
 

@@ -587,7 +587,8 @@ let imagesToProcess = [];
 
 for (const [key, items] of Object.entries(allItems)) {
     items.forEach((item, index) => {
-        if (item.image.startsWith("https://raw.githubusercontent.com/ByMykel/")) {
+        // item.image is null when the definition had no image_inventory; keep the item, skip the download
+        if (item.image?.startsWith("https://raw.githubusercontent.com/ByMykel/")) {
             imagesToProcess.push(item.image);
             const fileName = path.basename(new URL(item.image).pathname).replace("_png.png", ".png");
             allItems[key][index].image = `/images/items/${fileName}`;
