@@ -112,6 +112,40 @@ for (const language of LANGUAGES) {
   }
 }
 
+// The doppler phase map the P2P autocomplete runs on. Phase is not part of a Steam market hash name - it comes
+// from the paint index - so it is appended the same way the inventory loader does it, giving the exact key shape
+// the api already consumes: "★ Bayonet | Doppler (Factory New) - Black Pearl".
+//
+// This exists because the file the api shipped with was frozen at 2025-02-03 and covered 14 knives; the game now
+// has 19, so Skeleton, Nomad, Paracord and Survival Knife dopplers - and the Glock-18 Gamma Doppler - had no
+// phases in search at all. Generated per publish, that stops happening.
+//
+// The paint_index -> phase mapping was verified to be global rather than per weapon: across all 729 entries no
+// paint index maps to two different phases, which is what makes one flat map correct.
+const STEAM_IMAGE_PREFIX = /^https:\/\/[^/]+\/economy\/image\//;
+
+const ungrouped = JSON.parse(
+  fs.readFileSync("./public/api/en/skins_not_grouped.json", "utf-8"),
+);
+
+const dopplers = {};
+for (const item of ungrouped) {
+  if (!item.phase || !item.market_hash_name || !item.image) continue;
+  dopplers[`${item.market_hash_name} - ${item.phase}`] = item.image.replace(
+    STEAM_IMAGE_PREFIX,
+    "",
+  );
+}
+
+const dopplerRaw = Buffer.from(JSON.stringify(dopplers), "utf-8");
+const dopplerPacked = gzipSync(dopplerRaw, { level: 9 });
+mkdir(path.join(DIST, "api"));
+fs.writeFileSync(path.join(DIST, "api/dopplers.json.gz"), dopplerPacked);
+
+totalRaw += dopplerRaw.length;
+totalPacked += dopplerPacked.length;
+files.push("api/dopplers.json.gz");
+
 // the bots side: the flattened catalogue plus the two generated TypeScript files
 const botsAll = writeGzip(path.join(OUT, "all.json"), path.join(DIST, "bots/all.json.gz"));
 totalRaw += botsAll.raw;
@@ -159,6 +193,7 @@ fs.writeFileSync(path.join(DIST, ".nojekyll"), "");
 const mb = bytes => `${(bytes / 1048576).toFixed(1)} MB`;
 
 console.log(`  api + bots        ${files.length} arquivos`);
+console.log(`  dopplers          ${Object.keys(dopplers).length} variantes`);
 console.log(`  imagens           ${collectionImages.length} coleções, ${itemImages.length} itens`);
 console.log(`  bruto             ${mb(totalRaw)}`);
 console.log(`  publicado         ${mb(totalPacked)}`);
