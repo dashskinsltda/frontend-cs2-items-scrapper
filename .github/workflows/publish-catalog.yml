@@ -1,23 +1,40 @@
 #
 # Publishes the item catalogue both DashSkins platforms read.
 #
-# Manual on purpose. CS2 items ship in batches every few months, so there is nothing for a schedule to catch, and
-# a cron on a quiet repository gets disabled by GitHub after 60 days of no commits anyway - which is what
-# silently happened to update-and-group.yml.
-#
 # The deployment is one snapshot of one pipeline run, so the P2P api and the bots frontend cannot drift: both
-# record the Steam build id in manifestIdUpdate.txt and both read the same files.
+# record the same Steam build id and both read the same files.
+#
+# Three ways in, on purpose:
+#   schedule  - checks daily whether the game shipped new items, and does nothing when it did not
+#   push      - a change to the generator's own code changes the output, so it republishes
+#   manual    - publish regardless
 #
 name: Publish catalog
 
 on:
+  # CS2 items arrive in batches with no announcement, so the schedule is a watcher rather than a rebuild: the
+  # check job costs two HTTP requests and stops there when the Steam manifest has not moved.
+  # Note GitHub disables scheduled workflows after 60 days with no repository activity - that is what silently
+  # happened to update-and-group.yml. The push trigger below keeps this one alive as long as anyone touches the
+  # generator; if the repository goes quiet for two months, re-enable it from the Actions tab.
+  schedule:
+    - cron: "0 9 * * *"
+
   workflow_dispatch:
     inputs:
       force:
-        description: "Baixar tudo de novo, mesmo sem mudança de manifesto"
+        description: "Publicar mesmo se o jogo não tiver mudado"
         required: false
         default: true
         type: boolean
+
+  # A code change to the generator is worth republishing; a README or workflow edit is not.
+  push:
+    branches: [main]
+    paths:
+      - "*.js"
+      - "services/**"
+      - "utils/**"
 
 concurrency:
   group: publish-catalog
@@ -27,7 +44,39 @@ permissions:
   contents: write
 
 jobs:
+  # Cheap gate. Only the scheduled run can be skipped: a push means the generator itself changed, and a manual
+  # run means someone decided.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.compare.outputs.changed }}
+      steam: ${{ steps.compare.outputs.steam }}
+    steps:
+      - id: compare
+        name: O jogo mudou?
+        run: |
+          STEAM=$(curl -sfL https://raw.githubusercontent.com/ByMykel/counter-strike-file-tracker/main/static/manifestId.txt | tr -d '[:space:]')
+          PUBLICADO=$(curl -sfL https://raw.githubusercontent.com/${{ github.repository }}/gh-pages/version.json | jq -r '.manifestId // empty' || true)
+
+          echo "steam=$STEAM" >> "$GITHUB_OUTPUT"
+          {
+            echo "manifesto da Steam : ${STEAM:-indisponível}"
+            echo "manifesto publicado: ${PUBLICADO:-nenhum}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # An empty STEAM means the tracker is unreachable; on a schedule treat that as "no news" rather than
+          # rebuilding against data we could not verify.
+          if [ "${{ github.event_name }}" = "schedule" ] && { [ -z "$STEAM" ] || [ "$STEAM" = "$PUBLICADO" ]; }; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Nada a fazer." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -39,10 +88,11 @@ jobs:
 
       - run: npm ci
 
-      # update.js exits early when the Steam depot manifest has not moved, which is also the case on a fresh
-      # checkout - the default is therefore to force.
+      # Always forced. update.js exits early when the Steam manifest has not moved, writing nothing - and
+      # public/api/pt-BR is not tracked, so on a clean CI checkout there would then be nothing for generate-files
+      # to read. Deciding whether there is anything to do is the check job's business, not update.js's.
       - name: Baixar dados do jogo
-        run: npm run ${{ inputs.force && 'update-data-force' || 'update-data' }}
+        run: npm run update-data-force
 
       # group-data is deliberately absent: it only builds a 62 MB all.json that neither platform reads.
       - name: Gerar arquivos do bots
@@ -53,16 +103,20 @@ jobs:
 
       - name: Resumo
         run: |
-          echo "### Catálogo publicado" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          head -c 400 dist/version.json >> $GITHUB_STEP_SUMMARY
-          echo '' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "Tamanho: $(du -sh dist | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### Catálogo publicado"
+            echo '```json'
+            head -c 400 dist/version.json
+            echo ''
+            echo '```'
+            echo "Tamanho: $(du -sh dist | cut -f1)"
+            echo ""
+            echo "Agora: preview no painel do P2P, e \`npm run items:update\` no new-frontend."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: dist
           clean: true
-          commit-message: "catálogo build ${{ github.run_number }}"
+          commit-message: "catálogo build ${{ needs.check.outputs.steam }}"
