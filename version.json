@@ -1,7 +1,7 @@
 {
-  "manifestId": "2053759441494650084",
-  "generatedAt": "2026-09-21T02:53:57.377Z",
-  "generation": "2026-09-21",
+  "manifestId": "3469898947734168900",
+  "generatedAt": "2026-09-23T14:05:40.710Z",
+  "generation": "2026-09-23",
   "files": [
     "api/en/agents.json.gz",
     "api/en/base_weapons.json.gz",
@@ -133,6 +133,7 @@
     "bots/images/items/nrg_ranking_gold.png",
     "bots/images/items/pain_ranking_gold.png",
     "bots/images/items/sig_hen1_ranking_gold.png",
-    "bots/images/items/sig_staehr_ranking_gold.png"
+    "bots/images/items/sig_staehr_ranking_gold.png",
+    "bots/images/items/starjunk95_01.png"
   ]
 }
