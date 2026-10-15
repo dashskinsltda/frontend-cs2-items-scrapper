@@ -1,7 +1,7 @@
 {
-  "manifestId": "4758919807587010422",
-  "generatedAt": "2026-10-09T15:50:16.082Z",
-  "generation": "2026-10-09",
+  "manifestId": "2312433566686574487",
+  "generatedAt": "2026-10-15T13:58:18.853Z",
+  "generation": "2026-10-15",
   "files": [
     "api/en/agents.json.gz",
     "api/en/base_weapons.json.gz",
@@ -125,15 +125,9 @@
     "bots/images/collections/set_weapons_iii.png",
     "bots/images/collections/set_xpshop_wpn_01.svg",
     "bots/images/collections/set_xraymachine.png",
-    "bots/images/items/b8_ranking_gold.png",
     "bots/images/items/crate_sticker_pack_recoil_capsule.png",
-    "bots/images/items/fq_ranking_gold.png",
-    "bots/images/items/hero_ranking_gold.png",
     "bots/images/items/lgcy_ranking_gold.png",
     "bots/images/items/nrg_ranking_gold.png",
-    "bots/images/items/pain_ranking_gold.png",
-    "bots/images/items/sig_hen1_ranking_gold.png",
-    "bots/images/items/sig_staehr_ranking_gold.png",
-    "bots/images/items/starjunk95_01.png"
+    "bots/images/items/pain_ranking_gold.png"
   ]
 }
